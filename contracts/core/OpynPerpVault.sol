@@ -203,28 +203,17 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     require(msg.value > 0, 'O6');
 
-    // the sdecrv is already deposited into the contract at this point, need to substract it from total
-    uint256[2] memory amounts;
-    amounts[0] = msg.value;
-    amounts[1] = 0; // not depositing any seth
-
     // deposit ETH to curvePool
-    curvePool.add_liquidity{value:msg.value}(amounts, minEcrv);
+    uint256 ecrv_received = curvePool.add_liquidity{value:msg.value}([msg.value,0], minEcrv);
+    //TODO do this before rollover?
+    ecrv.safeIncreaseAllowance(sdecrvAddress, ecrv_received);
+    sdecrv.deposit(ecrv_received);
 
+    
     // keep track of balance before
     uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
-
-    // deposit ecrv to stakedao
-    uint256 ecrvToDeposit = ecrv.balanceOf(address(this));
-
-    ecrv.safeIncreaseAllowance(sdecrvAddress, ecrvToDeposit);
-    sdecrv.deposit(ecrvToDeposit);
-
-    // mint shares and emit event 
-    uint256 totalWithDepositedAmount = totalStakedaoAsset();
-    require(totalWithDepositedAmount < cap, 'O7');
-    uint256 sdecrvDeposited = totalWithDepositedAmount.sub(totalSdecrvBalanceBeforeDeposit);
-    uint256 share = _getSharesByDepositAmount(sdecrvDeposited, totalSdecrvBalanceBeforeDeposit);
+    require(totalSdecrvBalanceBeforeDeposit + ecrv_received < cap, 'O7');
+    uint256 share = _getSharesByDepositAmount(ecrv_received, totalSdecrvBalanceBeforeDeposit);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -247,8 +236,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
 
     // withdraw from stakedao and curvePool
     sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ecrvBalance = ecrv.balanceOf(address(this));
-    uint256 ethReceived = curvePool.remove_liquidity_one_coin(ecrvBalance, 0, minEth);
+    uint256 ethReceived = curvePool.remove_liquidity_one_coin(sdecrvToWithdraw, 0, minEth);
 
     // calculate fees
     uint256 fee = _getWithdrawFee(ethReceived);
