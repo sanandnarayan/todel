@@ -230,18 +230,21 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     notEmergency();
     actionsInitialized();
     uint256 currentSdecrvBalance = _balance();
-    uint256 sdecrvToWithdraw = _getWithdrawAmountByShares(_share);
-    require(sdecrvToWithdraw <= currentSdecrvBalance, 'O8');
+    uint256 sdecrvToSend = _getWithdrawAmountByShares(_share);
+    require(sdecrvToSend <= currentSdecrvBalance, 'O8');
 
     _burn(msg.sender, _share);
 
+    if(address(this).balance < sdecrvToSend) {
     // withdraw from stakedao and curvePool
-    sdecrv.withdraw(sdecrvToWithdraw);
-    uint256 ethReceived = curvePool.remove_liquidity_one_coin(sdecrvToWithdraw, 0, minEth);
+      sdecrv.withdraw(sdecrvToSend);
+      curvePool.remove_liquidity_one_coin(sdecrvToSend, 0, minEth);
+    }
 
     // calculate fees
-    uint256 fee = _getWithdrawFee(ethReceived);
-    uint256 ethOwedToUser = ethReceived.sub(fee);
+    // TODO look at storing this as a variable
+    uint256 fee = _getWithdrawFee(sdecrvToSend);
+    uint256 ethOwedToUser = sdecrvToSend.sub(fee);
 
     // send fee to recipient 
     (bool success1, ) = feeRecipient.call{ value: fee }('');
@@ -367,7 +370,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev returns remaining sdecrv balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(sdecrvAddress).balanceOf(address(this) + address(this).balance;
+    return IERC20(sdecrvAddress).balanceOf(address(this)) + address(this).balance;
   }
 
   /**
