@@ -193,6 +193,13 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     return withdrawAmount.sub(_getWithdrawFee(withdrawAmount));
   }
 
+  // deposit ETH to curvePool
+  function stakeETH(uint256 minEcrv) external onlyOwner{
+    uint256 ecrv_received = curvePool.add_liquidity{value:address(this).balance}([address(this).balance,0], minEcrv);
+    ecrv.safeIncreaseAllowance(sdecrvAddress, ecrv_received);
+    sdecrv.deposit(ecrv_received);
+  }
+
   /**
    * @notice Deposits ETH into the contract and mint vault shares. 
    * @dev deposit into the curvePool, then into stakedao, then mint the shares to depositor, and emit the deposit event
@@ -203,17 +210,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     require(msg.value > 0, 'O6');
 
-    // deposit ETH to curvePool
-    uint256 ecrv_received = curvePool.add_liquidity{value:msg.value}([msg.value,0], minEcrv);
-    //TODO do this before rollover?
-    ecrv.safeIncreaseAllowance(sdecrvAddress, ecrv_received);
-    sdecrv.deposit(ecrv_received);
-
+    uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
     
     // keep track of balance before
-    uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
-    require(totalSdecrvBalanceBeforeDeposit + ecrv_received < cap, 'O7');
-    uint256 share = _getSharesByDepositAmount(ecrv_received, totalSdecrvBalanceBeforeDeposit);
+    require(totalSdecrvBalanceBeforeDeposit + msg.value < cap, 'O7');
+    uint256 share = _getSharesByDepositAmount(msg.value, totalSdecrvBalanceBeforeDeposit);
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -366,7 +367,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev returns remaining sdecrv balance in the vault.
    */
   function _balance() internal view returns (uint256) {
-    return IERC20(sdecrvAddress).balanceOf(address(this));
+    return IERC20(sdecrvAddress).balanceOf(address(this) + address(this).balance;
   }
 
   /**
