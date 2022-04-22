@@ -165,7 +165,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    }
 
   /**
-   * @notice total sdecrv controlled by this vault
+   * @notice total sdecrv + eth controlled by this vault
    */
   function totalStakedaoAsset() public view returns (uint256) {
     uint256 debt = 0;
@@ -210,11 +210,11 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
     actionsInitialized();
     require(msg.value > 0, 'O6');
 
-    uint256 totalSdecrvBalanceBeforeDeposit = totalStakedaoAsset();
+    uint256 totalSdecrvBalance = totalStakedaoAsset();
     
     // keep track of balance before
-    require(totalSdecrvBalanceBeforeDeposit + msg.value < cap, 'O7');
-    uint256 share = _getSharesByDepositAmount(msg.value, totalSdecrvBalanceBeforeDeposit);
+    require(totalSdecrvBalance < cap, 'O7');
+    uint256 share = _getSharesByDepositAmount(msg.value, totalSdecrvBalance.sub(msg.value));
 
     emit Deposit(msg.sender, msg.value, share);
 
@@ -370,6 +370,7 @@ contract OpynPerpVault is ERC20, ReentrancyGuard, Ownable {
    * @dev returns remaining sdecrv balance in the vault.
    */
   function _balance() internal view returns (uint256) {
+    //TODO add the balance of eth here so that shares are taken care of properly
     return IERC20(sdecrvAddress).balanceOf(address(this)) + address(this).balance;
   }
 
